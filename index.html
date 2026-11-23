@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roleta de Estudos — Sorteio &amp; Cronômetro</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Header -->
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <circle cx="12" cy="12" r="2.5"></circle>
+            <path d="M12 3v6.5M12 14.5V21M3 12h6.5M14.5 12H21"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>Roleta de Estudos</h1>
+          <p class="brand-sub">Sorteio inteligente com sequências &amp; cronômetro</p>
+        </div>
+      </div>
+
+      <div class="topbar-stats" id="topbarStats">
+        <div class="stat-pill">
+          <span class="stat-label">Progresso</span>
+          <strong class="stat-value" id="statProgress">0 / 27</strong>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Restante</span>
+          <strong class="stat-value" id="statRemaining">15h 10m</strong>
+        </div>
+        <div class="stat-pill">
+          <span class="stat-label">Focado</span>
+          <strong class="stat-value" id="statStudied">0 min</strong>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button type="button" class="btn btn-ghost btn-icon" id="btnToggleSound" title="Ativar/Desativar sons" aria-label="Alternar som">
+          <svg id="iconSoundOn" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+          <svg id="iconSoundOff" class="hidden" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <line x1="23" y1="9" x2="17" y2="15"></line>
+            <line x1="17" y1="9" x2="23" y2="15"></line>
+          </svg>
+        </button>
+        <button type="button" class="btn btn-secondary" id="btnOpenImport">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          <span>Importar Tabela</span>
+        </button>
+        <button type="button" class="btn btn-primary" id="btnOpenAdd">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Nova Atividade</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Hero: Roulette + Active Timer -->
+    <main class="workspace-grid">
+      <!-- Left Card: Roulette Wheel -->
+      <section class="card roulette-card" aria-label="Sorteio de Atividades">
+        <div class="card-header">
+          <div>
+            <h2>Roleta de Sorteio</h2>
+            <p class="card-subtitle">Apenas atividades desbloqueadas entram no sorteio</p>
+          </div>
+          <span class="badge badge-pool" id="eligibleCountBadge">3 na roleta</span>
+        </div>
+
+        <!-- Roulette Filters -->
+        <div class="roulette-filters">
+          <label class="filter-field">
+            <span>Disciplina</span>
+            <select id="filterDiscipline">
+              <option value="ALL">Todas</option>
+            </select>
+          </label>
+          <label class="filter-field">
+            <span>Tempo máximo</span>
+            <select id="filterMaxTime">
+              <option value="0">Qualquer tempo</option>
+              <option value="20">Até 20 min</option>
+              <option value="30">Até 30 min</option>
+              <option value="60">Até 60 min</option>
+              <option value="120">Até 2h</option>
+            </select>
+          </label>
+          <label class="filter-field">
+            <span>Peso do sorteio</span>
+            <select id="filterWeightMode">
+              <option value="uniform">Igual para todas</option>
+              <option value="deadline">Priorizar prazo próximo</option>
+            </select>
+          </label>
+        </div>
+
+        <!-- Wheel Container -->
+        <div class="wheel-stage">
+          <div class="wheel-pointer" aria-hidden="true">
+            <svg viewBox="0 0 32 36" width="32" height="36">
+              <path d="M16 34 L3 6 Q16 0 29 6 Z" fill="#f8fafc" stroke="#0f172a" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <div class="wheel-canvas-wrap">
+            <canvas id="rouletteCanvas" width="420" height="420" aria-label="Roleta de atividades"></canvas>
+            <button type="button" class="wheel-center-btn" id="btnSpinCenter" title="Girar a roleta">
+              <span>GIRAR</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="roulette-cta">
+          <button type="button" class="btn btn-accent btn-lg" id="btnSpin">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+            </svg>
+            <span>Sortear Atividade</span>
+          </button>
+        </div>
+
+        <!-- Eligible Pool Chips -->
+        <div class="eligible-section">
+          <div class="eligible-header">
+            <span>Elegíveis agora</span>
+            <span class="eligible-hint" id="eligibleHint"></span>
+          </div>
+          <div class="eligible-chips" id="eligibleChips"></div>
+        </div>
+      </section>
+
+      <!-- Right Card: Active Timer -->
+      <section class="card timer-card" aria-label="Cronômetro da Atividade">
+        <div class="card-header">
+          <div>
+            <h2>Cronômetro</h2>
+            <p class="card-subtitle">Temporize e acompanhe a atividade sorteada</p>
+          </div>
+          <span class="badge badge-status" id="timerStatusBadge">Aguardando</span>
+        </div>
+
+        <!-- Empty State -->
+        <div class="timer-empty" id="timerEmpty">
+          <div class="timer-empty-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="13" r="8"></circle>
+              <path d="M12 9v4l2.5 2.5"></path>
+              <path d="M9 2h6"></path>
+              <path d="M12 2v3"></path>
+            </svg>
+          </div>
+          <h3>Nenhuma atividade ativa</h3>
+          <p>Gire a roleta ao lado para sortear sua próxima atividade ou clique em <strong>Iniciar</strong> em qualquer tarefa desbloqueada abaixo.</p>
+          <button type="button" class="btn btn-accent" id="btnSpinFromEmpty">Sortear agora</button>
+        </div>
+
+        <!-- Active State -->
+        <div class="timer-active hidden" id="timerActive">
+          <div class="active-task-meta">
+            <div class="active-task-badges">
+              <span class="disc-badge" id="activeDiscBadge">PAA</span>
+              <span class="deadline-badge" id="activeDeadlineBadge">Prazo: 30/11/2026</span>
+            </div>
+            <h3 class="active-task-title" id="activeTaskTitle">L3-questão1</h3>
+            <p class="active-task-unlock hidden" id="activeTaskUnlock"></p>
+          </div>
+
+          <!-- Circular Progress Ring -->
+          <div class="timer-ring-wrap">
+            <svg class="timer-ring" viewBox="0 0 240 240">
+              <circle class="timer-ring-bg" cx="120" cy="120" r="106"></circle>
+              <circle class="timer-ring-progress" id="timerRingProgress" cx="120" cy="120" r="106"></circle>
+            </svg>
+            <div class="timer-display-inner">
+              <div class="timer-clock" id="timerClock">15:00</div>
+              <div class="timer-sublabel" id="timerSublabel">Estimado: 15 min</div>
+              <div class="timer-elapsed" id="timerElapsed">Trabalhado: 00:00</div>
+            </div>
+          </div>
+
+          <!-- Timer Controls -->
+          <div class="timer-controls">
+            <button type="button" class="btn btn-primary btn-lg" id="btnTimerToggle">
+              <svg id="iconPlay" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <polygon points="6 4 20 12 6 20 6 4"></polygon>
+              </svg>
+              <svg id="iconPause" class="hidden" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                <rect x="6" y="4" width="4" height="16"></rect>
+                <rect x="14" y="4" width="4" height="16"></rect>
+              </svg>
+              <span id="labelTimerToggle">Iniciar</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btnTimerPlus5" title="Adicionar 5 minutos ao tempo estimado">
+              +5 min
+            </button>
+            <button type="button" class="btn btn-ghost" id="btnTimerReset" title="Reiniciar cronômetro desta atividade">
+              ↺ Zerar
+            </button>
+          </div>
+
+          <!-- Completion Actions -->
+          <div class="timer-footer-actions">
+            <button type="button" class="btn btn-success btn-block" id="btnCompleteActive">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              <span>Concluir Atividade</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-block" id="btnReturnToPool">
+              <span>Pausar e Devolver à Roleta</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Activities & Sequential Chains Manager -->
+    <section class="card manager-card" aria-label="Lista de Atividades e Sequências">
+      <div class="manager-header">
+        <div>
+          <h2>Atividades &amp; Sequências</h2>
+          <p class="card-subtitle">Ative o modo <strong>Sequencial</strong> em uma disciplina ou defina pré-requisitos individuais por atividade.</p>
+        </div>
+        <div class="manager-controls">
+          <div class="search-box">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="search" id="searchTasks" placeholder="Buscar atividade..." />
+          </div>
+          <div class="status-tabs" role="tablist" aria-label="Filtrar por status">
+            <button type="button" class="tab-btn active" data-status-filter="all">Todas</button>
+            <button type="button" class="tab-btn" data-status-filter="available">Disponíveis</button>
+            <button type="button" class="tab-btn" data-status-filter="locked">Bloqueadas</button>
+            <button type="button" class="tab-btn" data-status-filter="completed">Concluídas</button>
+          </div>
+          <button type="button" class="btn btn-ghost btn-sm danger-text" id="btnResetDefaults" title="Restaurar lista inicial">
+            Restaurar padrão
+          </button>
+        </div>
+      </div>
+
+      <div class="discipline-groups" id="disciplineGroups"></div>
+    </section>
+  </div>
+
+  <!-- Modal: Add / Edit Activity -->
+  <div class="modal-backdrop hidden" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="taskModalTitle">Nova Atividade</h3>
+        <button type="button" class="btn-close" data-close-modal="taskModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="taskForm" class="modal-body">
+        <input type="hidden" id="taskIdInput" />
+        <div class="form-row">
+          <label class="form-field">
+            <span>Disciplina *</span>
+            <input type="text" id="taskDiscInput" list="disciplinesDatalist" placeholder="Ex: PAA, CG, GABD" required />
+            <datalist id="disciplinesDatalist"></datalist>
+          </label>
+          <label class="form-field">
+            <span>Tempo estimado (min) *</span>
+            <input type="number" id="taskTimeInput" min="1" max="1440" value="30" required />
+          </label>
+        </div>
+
+        <label class="form-field">
+          <span>Nome da Atividade *</span>
+          <input type="text" id="taskNameInput" placeholder="Ex: L3-questão23" required />
+        </label>
+
+        <div class="form-row">
+          <label class="form-field">
+            <span>Data Limite</span>
+            <input type="date" id="taskDeadlineInput" />
+          </label>
+          <label class="form-field">
+            <span>Pré-requisito (Sequencial)</span>
+            <select id="taskDependsInput">
+              <option value="">Nenhum (sempre disponível)</option>
+            </select>
+          </label>
+        </div>
+
+        <p class="form-hint">Se escolher um pré-requisito, esta atividade ficará 🔒 bloqueada e só entrará na roleta após o pré-requisito ser concluído.</p>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="taskModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary" id="btnSaveTask">Salvar Atividade</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Import Table (TSV/CSV) -->
+  <div class="modal-backdrop hidden" id="importModal" role="dialog" aria-modal="true" aria-labelledby="importModalTitle">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3 id="importModalTitle">Importar Tabela de Atividades</h3>
+        <button type="button" class="btn-close" data-close-modal="importModal" aria-label="Fechar">&times;</button>
+      </div>
+      <form id="importForm" class="modal-body">
+        <p class="form-hint">Cole linhas copiadas do Excel, Google Sheets ou texto separado por TAB / ponto-e-vírgula no formato:<br />
+        <code>Disciplina &lt;TAB&gt; Atividade &lt;TAB&gt; Tempo(min) &lt;TAB&gt; DataLimite(DD/MM/AAAA)</code></p>
+
+        <label class="form-field">
+          <span>Dados da tabela</span>
+          <textarea id="importTextarea" rows="8" placeholder="PAA	L4-questão1	20	10/12/2026
+PAA	L4-questão2	25	10/12/2026
+CG	Slides	45	05/12/2026" required></textarea>
+        </label>
+
+        <div class="checkbox-stack">
+          <label class="checkbox-label">
+            <input type="checkbox" id="importChainCheckbox" checked />
+            <span>Encadear atividades sequencialmente dentro de cada disciplina importada</span>
+          </label>
+          <label class="checkbox-label">
+            <input type="checkbox" id="importReplaceCheckbox" />
+            <span>Substituir todas as atividades existentes (desmarque para apenas adicionar)</span>
+          </label>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-close-modal="importModal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Importar Atividades</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+  <script src="data.js"></script>
+  <script src="sound.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
