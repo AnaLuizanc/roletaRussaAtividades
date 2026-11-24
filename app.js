@@ -44,8 +44,11 @@
   // --- DOM Elements ---
   const el = {
     statProgress: document.getElementById('statProgress'),
+    statProgressPct: document.getElementById('statProgressPct'),
+    statProgressBar: document.getElementById('statProgressBar'),
     statRemaining: document.getElementById('statRemaining'),
     statStudied: document.getElementById('statStudied'),
+    progressOverview: document.getElementById('progressOverview'),
     btnToggleSound: document.getElementById('btnToggleSound'),
     iconSoundOn: document.getElementById('iconSoundOn'),
     iconSoundOff: document.getElementById('iconSoundOff'),
@@ -732,6 +735,7 @@
   function renderStats() {
     const total = state.tasks.length;
     const completed = state.tasks.filter((t) => t.completed).length;
+    const overallPct = total ? Math.round((completed / total) * 100) : 0;
     const remainingMin = state.tasks
       .filter((t) => !t.completed)
       .reduce((acc, t) => {
@@ -741,10 +745,79 @@
     const totalStudiedSec = state.tasks.reduce((acc, t) => acc + getCurrentElapsedSeconds(t), 0);
 
     el.statProgress.textContent = `${completed} / ${total}`;
+    el.statProgressPct.textContent = `${overallPct}%`;
+    el.statProgressBar.style.width = `${overallPct}%`;
     el.statRemaining.textContent = formatDurationMinutes(remainingMin);
     el.statStudied.textContent = totalStudiedSec < 60
       ? `${Math.floor(totalStudiedSec)}s`
       : formatDurationMinutes(totalStudiedSec / 60);
+
+    renderProgressOverview();
+  }
+
+  function renderProgressOverview() {
+    if (!el.progressOverview) return;
+    const total = state.tasks.length;
+    const completed = state.tasks.filter((t) => t.completed).length;
+    const overallPct = total ? Math.round((completed / total) * 100) : 0;
+    const totalEstMin = state.tasks.reduce((acc, t) => acc + t.tempoMin, 0);
+    const doneEstMin = state.tasks.filter((t) => t.completed).reduce((acc, t) => acc + t.tempoMin, 0);
+    const overallTimePct = totalEstMin ? Math.round((doneEstMin / totalEstMin) * 100) : 0;
+    const overallRemMin = totalEstMin - doneEstMin;
+
+    const cards = [];
+    cards.push(`
+      <div class="progress-card is-overall" title="Progresso por tempo estimado: ${overallTimePct}%">
+        <div class="progress-card-top">
+          <span class="progress-card-name">
+            <span class="progress-card-dot" style="background: linear-gradient(135deg, #6366f1, #34d399);"></span>
+            Geral
+          </span>
+          <span class="progress-card-pct" style="color:#34d399;">${overallPct}%</span>
+        </div>
+        <div class="progress-card-bar" aria-hidden="true">
+          <div class="progress-card-fill" style="width:${overallPct}%; background: linear-gradient(90deg, #6366f1, #34d399);"></div>
+        </div>
+        <div class="progress-card-sub">
+          <span>${completed}/${total} concluídas</span>
+          <span>${formatDurationMinutes(overallRemMin)} rest.</span>
+        </div>
+      </div>
+    `);
+
+    const disciplines = getDisciplines();
+    disciplines.forEach((disciplina) => {
+      const group = state.tasks.filter((t) => t.disciplina === disciplina);
+      const groupTotal = group.length;
+      const groupDone = group.filter((t) => t.completed).length;
+      const groupPct = groupTotal ? Math.round((groupDone / groupTotal) * 100) : 0;
+      const groupEstMin = group.reduce((acc, t) => acc + t.tempoMin, 0);
+      const groupDoneMin = group.filter((t) => t.completed).reduce((acc, t) => acc + t.tempoMin, 0);
+      const groupTimePct = groupEstMin ? Math.round((groupDoneMin / groupEstMin) * 100) : 0;
+      const groupRemMin = groupEstMin - groupDoneMin;
+      const color = getDisciplineColor(disciplina);
+
+      cards.push(`
+        <div class="progress-card" title="${escapeAttr(disciplina)} • Por tempo estimado: ${groupTimePct}%">
+          <div class="progress-card-top">
+            <span class="progress-card-name">
+              <span class="progress-card-dot" style="background:${color.light};"></span>
+              ${escapeHtml(disciplina)}
+            </span>
+            <span class="progress-card-pct" style="color:${color.light};">${groupPct}%</span>
+          </div>
+          <div class="progress-card-bar" aria-hidden="true">
+            <div class="progress-card-fill" style="width:${groupPct}%; background:${color.light};"></div>
+          </div>
+          <div class="progress-card-sub">
+            <span>${groupDone}/${groupTotal} concluídas</span>
+            <span>${formatDurationMinutes(groupRemMin)} rest.</span>
+          </div>
+        </div>
+      `);
+    });
+
+    el.progressOverview.innerHTML = cards.join('');
   }
 
   function renderFilterOptions() {
@@ -982,6 +1055,7 @@
             <div class="disc-progress-bar" aria-hidden="true">
               <div class="disc-progress-fill" style="width:${pct}%; background:${color.light};"></div>
             </div>
+            <strong class="disc-pct" style="color:${color.light};">${pct}%</strong>
             <span>${formatDurationMinutes(remMin)} restantes</span>
           </div>
         </div>

@@ -28,9 +28,17 @@
       </div>
 
       <div class="topbar-stats" id="topbarStats">
-        <div class="stat-pill">
-          <span class="stat-label">Progresso</span>
-          <strong class="stat-value" id="statProgress">0 / 27</strong>
+        <div class="stat-pill stat-pill-progress">
+          <div class="stat-pill-top">
+            <span class="stat-label">Progresso Geral</span>
+            <strong class="stat-pct" id="statProgressPct">0%</strong>
+          </div>
+          <div class="stat-pill-bottom">
+            <strong class="stat-value" id="statProgress">0 / 27</strong>
+            <div class="stat-mini-bar" aria-hidden="true">
+              <div class="stat-mini-fill" id="statProgressBar" style="width: 0%"></div>
+            </div>
+          </div>
         </div>
         <div class="stat-pill">
           <span class="stat-label">Restante</span>
@@ -72,6 +80,9 @@
         </button>
       </div>
     </header>
+
+    <!-- Overall & Per-Category Completion Progress -->
+    <section class="progress-overview" id="progressOverview" aria-label="Progresso de conclusão geral e por categoria"></section>
 
     <!-- Main Hero: Roulette + Active Timer -->
     <main class="workspace-grid">
