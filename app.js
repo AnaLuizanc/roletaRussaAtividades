@@ -186,6 +186,47 @@
     return false;
   }
 
+  function breakCycleForPrerequisite(task, newPrereqId) {
+    if (!task || !newPrereqId || !wouldCreateCycle(task.id, newPrereqId)) {
+      return false;
+    }
+    // Walk up from newPrereqId to find the direct dependent of `task` in the chain
+    const visited = new Set();
+    let curr = getTaskById(newPrereqId);
+    while (curr && curr.dependsOn && !visited.has(curr.id)) {
+      visited.add(curr.id);
+      if (curr.dependsOn === task.id) {
+        curr.dependsOn = task.dependsOn || null;
+        return true;
+      }
+      curr = getTaskById(curr.dependsOn);
+    }
+    return false;
+  }
+
+  function sortTasksByDependency(groupTasks) {
+    const byId = new Map(groupTasks.map((t) => [t.id, t]));
+    const visited = new Set();
+    const visiting = new Set();
+    const result = [];
+
+    function visit(task) {
+      if (visited.has(task.id) || visiting.has(task.id)) return;
+      visiting.add(task.id);
+      if (task.dependsOn && byId.has(task.dependsOn)) {
+        visit(byId.get(task.dependsOn));
+      }
+      visiting.delete(task.id);
+      visited.add(task.id);
+      result.push(task);
+    }
+
+    for (const task of groupTasks) {
+      visit(task);
+    }
+    return result;
+  }
+
   function getDisciplines() {
     const seen = new Set();
     const list = [];
@@ -199,7 +240,7 @@
   }
 
   function isDisciplineSequential(disciplina) {
-    const group = state.tasks.filter((t) => t.disciplina === disciplina);
+    const group = sortTasksByDependency(state.tasks.filter((t) => t.disciplina === disciplina));
     if (group.length < 2) return false;
     for (let i = 1; i < group.length; i++) {
       if (group[i].dependsOn !== group[i - 1].id) {
@@ -210,12 +251,15 @@
   }
 
   function setDisciplineSequential(disciplina, enabled) {
-    const group = state.tasks.filter((t) => t.disciplina === disciplina);
+    const group = sortTasksByDependency(state.tasks.filter((t) => t.disciplina === disciplina));
     if (group.length < 2) return;
 
     const groupIds = new Set(group.map((t) => t.id));
     if (enabled) {
-      group[0].dependsOn = null;
+      // Keep external prerequisite on the first item if it has one; clear only intra-discipline link
+      if (group[0].dependsOn && groupIds.has(group[0].dependsOn)) {
+        group[0].dependsOn = null;
+      }
       for (let i = 1; i < group.length; i++) {
         group[i].dependsOn = group[i - 1].id;
       }
@@ -1005,7 +1049,7 @@
     let renderedAnyGroup = false;
 
     disciplines.forEach((disciplina) => {
-      const allInGroup = state.tasks.filter((t) => t.disciplina === disciplina);
+      const allInGroup = sortTasksByDependency(state.tasks.filter((t) => t.disciplina === disciplina));
       const filtered = allInGroup.filter((t) => {
         if (search) {
           const hay = `${t.disciplina} ${t.nome}`.toLowerCase();
@@ -1181,7 +1225,47 @@
   }
 
   // --- CRUD & Modals ---
-  function openTaskModal(taskToEdit = null) {
+  function populatePrerequisiteOptions(taskToEdit, preferredDiscipline = '', selectedValue = '') {
+    el.taskDependsInput.innerHTML = '<option value="">Nenhum (sempre disponível)</option>';
+
+    const disciplines = getDisciplines();
+    const pref = (preferredDiscipline || '').trim();
+    const orderedDisciplines = pref && disciplines.includes(pref)
+      ? [pref, ...disciplines.filter((d) => d !== pref)]
+      : disciplines;
+
+    orderedDisciplines.forEach((disciplina) => {
+      const candidates = sortTasksByDependency(
+        state.tasks.filter((t) => t.disciplina === disciplina && (!taskToEdit || t.id !== taskToEdit.id))
+      );
+      if (!candidates.length) return;
+
+      const groupEl = document.createElement('optgroup');
+      groupEl.label = disciplina;
+
+      candidates.forEach((candidate) => {
+        const opt = document.createElement('option');
+        opt.value = candidate.id;
+        const willInvert = Boolean(taskToEdit && wouldCreateCycle(taskToEdit.id, candidate.id));
+        const suffixes = [];
+        if (candidate.completed) suffixes.push('concluída');
+        if (willInvert) suffixes.push('inverte ordem');
+        const suffixText = suffixes.length ? ` (${suffixes.join(' • ')})` : '';
+        opt.textContent = `${candidate.nome}${suffixText}`;
+        groupEl.appendChild(opt);
+      });
+
+      el.taskDependsInput.appendChild(groupEl);
+    });
+
+    el.taskDependsInput.value = selectedValue || '';
+  }
+
+  function openTaskModal(taskOrId = null) {
+    const taskToEdit = typeof taskOrId === 'string'
+      ? getTaskById(taskOrId)
+      : (taskOrId && taskOrId.id ? getTaskById(taskOrId.id) : null);
+
     el.taskForm.reset();
     el.taskIdInput.value = taskToEdit ? taskToEdit.id : '';
     el.taskModalTitle.textContent = taskToEdit ? 'Editar Atividade' : 'Nova Atividade';
@@ -1191,18 +1275,11 @@
     el.taskTimeInput.value = taskToEdit ? taskToEdit.tempoMin : 30;
     el.taskDeadlineInput.value = taskToEdit ? taskToEdit.dataLimite : '';
 
-    // Populate prerequisite dropdown (excluding self & cycle-inducing tasks)
-    el.taskDependsInput.innerHTML = '<option value="">Nenhum (sempre disponível)</option>';
-    state.tasks.forEach((candidate) => {
-      if (taskToEdit && (candidate.id === taskToEdit.id || wouldCreateCycle(taskToEdit.id, candidate.id))) {
-        return;
-      }
-      const opt = document.createElement('option');
-      opt.value = candidate.id;
-      opt.textContent = `${candidate.disciplina} • ${candidate.nome}${candidate.completed ? ' (concluída)' : ''}`;
-      el.taskDependsInput.appendChild(opt);
-    });
-    el.taskDependsInput.value = taskToEdit && taskToEdit.dependsOn ? taskToEdit.dependsOn : '';
+    populatePrerequisiteOptions(
+      taskToEdit,
+      taskToEdit ? taskToEdit.disciplina : '',
+      taskToEdit && taskToEdit.dependsOn ? taskToEdit.dependsOn : ''
+    );
 
     el.taskModal.classList.remove('hidden');
     el.taskDiscInput.focus();
@@ -1227,21 +1304,24 @@
     if (id) {
       const task = getTaskById(id);
       if (!task) return;
-      if (dependsOn && wouldCreateCycle(task.id, dependsOn)) {
-        showToast('Esse pré-requisito criaria um ciclo infinito.', 'warning');
-        return;
-      }
+      const inverted = Boolean(dependsOn && breakCycleForPrerequisite(task, dependsOn));
       task.disciplina = disciplina;
       task.nome = nome;
       task.tempoMin = tempoMin;
       task.dataLimite = dataLimite;
       task.dependsOn = dependsOn;
 
-      if (state.activeTaskId === task.id && !isTaskUnlocked(task)) {
+      const active = getTaskById(state.activeTaskId);
+      if (active && !isTaskUnlocked(active)) {
         pauseTimer(true);
         state.activeTaskId = null;
       }
-      showToast(`Atividade "${nome}" atualizada.`, 'success');
+      showToast(
+        inverted
+          ? `Atividade "${nome}" atualizada e ordem sequencial ajustada.`
+          : `Atividade "${nome}" atualizada.`,
+        'success'
+      );
     } else {
       const newTask = {
         id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1401,6 +1481,10 @@
     });
 
     el.taskForm.addEventListener('submit', handleSaveTask);
+    el.taskDiscInput.addEventListener('input', () => {
+      const editingTask = getTaskById(el.taskIdInput.value.trim());
+      populatePrerequisiteOptions(editingTask, el.taskDiscInput.value, el.taskDependsInput.value);
+    });
     el.importForm.addEventListener('submit', handleImportSubmit);
     el.btnResetDefaults.addEventListener('click', handleResetDefaults);
 

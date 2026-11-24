@@ -500,6 +500,18 @@ html, body {
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.22);
 }
 
+select optgroup {
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+select option {
+  background: var(--surface-muted);
+  color: var(--text);
+  font-weight: 500;
+}
+
 /* Wheel Stage */
 .wheel-stage {
   position: relative;
