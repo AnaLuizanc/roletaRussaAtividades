@@ -648,6 +648,109 @@ select option {
 }
 
 /* Timer Card */
+.timer-card-header {
+  flex-wrap: wrap;
+}
+
+.timer-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.btn-pip {
+  position: relative;
+}
+
+.btn-pip.is-active {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #34d399;
+}
+
+.btn-pip.is-active:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.24);
+  border-color: rgba(52, 211, 153, 0.6);
+}
+
+.btn-pip.is-active::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.8);
+  animation: pipLivePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pipLivePulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.pip-hidden-video {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 2px;
+  height: 2px;
+  opacity: 0.001;
+  pointer-events: none;
+}
+
+.modal-backdrop.pip-modal-backgrounded {
+  inset: auto;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  background: transparent;
+  backdrop-filter: none;
+}
+
+.pip-modal-body {
+  gap: 14px;
+}
+
+.pip-video-stage {
+  width: 100%;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  background: #090d16;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45);
+}
+
+.pip-preview-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 1;
+  background: #090d16;
+  cursor: pointer;
+}
+
+.pip-modal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.form-hint kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-muted);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+}
+
 .timer-empty {
   text-align: center;
   padding: 52px 24px;

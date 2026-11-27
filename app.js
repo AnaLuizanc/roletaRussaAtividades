@@ -12,6 +12,7 @@
   } = window.RoletaData;
 
   const sound = window.RoletaSound;
+  const pip = window.RoletaPip;
   const STORAGE_KEY = 'roleta_estudos_state_v1';
   const RING_RADIUS = 106;
   const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
@@ -34,6 +35,8 @@
   let wheelRotation = 0;
   let isSpinning = false;
   let timerInterval = null;
+  let tickWorker = null;
+  let lastTimerTickAt = 0;
   let timerRunning = false;
   let runStartedAt = null;
   let elapsedAtRunStart = 0;
@@ -67,6 +70,8 @@
     eligibleChips: document.getElementById('eligibleChips'),
     eligibleHint: document.getElementById('eligibleHint'),
 
+    btnTimerPip: document.getElementById('btnTimerPip'),
+    labelTimerPip: document.getElementById('labelTimerPip'),
     timerStatusBadge: document.getElementById('timerStatusBadge'),
     timerEmpty: document.getElementById('timerEmpty'),
     timerActive: document.getElementById('timerActive'),
@@ -475,6 +480,44 @@
     return currentSlices.length - 1;
   }
 
+  function pickWeightedSlice(slices) {
+    const totalWeight = slices.reduce((sum, s) => sum + s.weight, 0);
+    let r = Math.random() * totalWeight;
+    for (const s of slices) {
+      r -= s.weight;
+      if (r <= 0) return s;
+    }
+    return slices[slices.length - 1];
+  }
+
+  function quickDrawTask() {
+    if (isSpinning) return;
+    const eligible = getEligibleTasks();
+    if (!eligible.length) {
+      showToast('Nenhuma atividade disponível para sortear com os filtros atuais.', 'warning');
+      return;
+    }
+
+    if (timerRunning) {
+      pauseTimer(true);
+    }
+
+    currentSlices = buildWheelSlices(eligible);
+    const winningSlice = pickWeightedSlice(currentSlices);
+
+    const span = winningSlice.endAngle - winningSlice.startAngle;
+    const targetLocal = winningSlice.startAngle + 0.5 * span;
+    wheelRotation = normalizeAngle(-Math.PI / 2 - targetLocal);
+
+    sound.ensureContext();
+    selectActiveTask(winningSlice.task.id, false);
+    sound.playWin();
+    showToast(
+      `Sorteada: ${winningSlice.task.disciplina} • ${winningSlice.task.nome} (${winningSlice.task.tempoMin} min)`,
+      'accent'
+    );
+  }
+
   function spinRoulette() {
     if (isSpinning) return;
     const eligible = getEligibleTasks();
@@ -491,16 +534,7 @@
     currentSlices = buildWheelSlices(eligible);
 
     // Weighted random selection
-    const totalWeight = currentSlices.reduce((sum, s) => sum + s.weight, 0);
-    let r = Math.random() * totalWeight;
-    let winningSlice = currentSlices[currentSlices.length - 1];
-    for (const s of currentSlices) {
-      r -= s.weight;
-      if (r <= 0) {
-        winningSlice = s;
-        break;
-      }
-    }
+    const winningSlice = pickWeightedSlice(currentSlices);
 
     const span = winningSlice.endAngle - winningSlice.startAngle;
     const targetLocal = winningSlice.startAngle + (0.18 + Math.random() * 0.64) * span;
@@ -604,6 +638,36 @@
     }
   }
 
+  function startTickWorker() {
+    if (tickWorker || typeof Worker === 'undefined' || typeof Blob === 'undefined') return;
+    try {
+      const blob = new Blob(
+        ['let id = setInterval(() => postMessage(0), 250); self.onmessage = () => clearInterval(id);'],
+        { type: 'application/javascript' }
+      );
+      const url = URL.createObjectURL(blob);
+      tickWorker = new Worker(url);
+      URL.revokeObjectURL(url);
+      tickWorker.onmessage = () => {
+        if (timerRunning) onTimerTick();
+      };
+      tickWorker.onerror = () => {
+        stopTickWorker();
+      };
+    } catch (_) {
+      tickWorker = null;
+    }
+  }
+
+  function stopTickWorker() {
+    if (!tickWorker) return;
+    try {
+      tickWorker.postMessage('stop');
+      tickWorker.terminate();
+    } catch (_) {}
+    tickWorker = null;
+  }
+
   function startTimer() {
     const task = getTaskById(state.activeTaskId);
     if (!task || timerRunning) return;
@@ -613,11 +677,14 @@
     runStartedAt = Date.now();
     elapsedAtRunStart = task.elapsedSeconds || 0;
     lastPersistTick = Date.now();
+    lastTimerTickAt = 0;
 
     if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(onTimerTick, 250);
+    timerInterval = setInterval(() => onTimerTick(), 250);
+    startTickWorker();
     renderTimer();
     renderStats();
+    updateDocumentTitle(task, getTargetSeconds(task) - getCurrentElapsedSeconds(task));
   }
 
   function pauseTimer(silent = false) {
@@ -632,6 +699,7 @@
       clearInterval(timerInterval);
       timerInterval = null;
     }
+    stopTickWorker();
     saveState();
     updateDocumentTitle();
     if (!silent) {
@@ -641,7 +709,11 @@
     }
   }
 
-  function onTimerTick() {
+  function onTimerTick(force = false) {
+    const nowPerf = performance.now();
+    if (!force && nowPerf - lastTimerTickAt < 150) return;
+    lastTimerTickAt = nowPerf;
+
     const task = getTaskById(state.activeTaskId);
     if (!task) {
       pauseTimer(true);
@@ -654,6 +726,7 @@
     if (!alarmFiredForTask && elapsed >= target) {
       alarmFiredForTask = true;
       sound.playAlarm();
+      if (pip) pip.notifyOvertime();
       showToast(
         `⏰ Tempo estimado de "${task.nome}" finalizado! Continuando contagem em hora extra.`,
         'warning'
@@ -757,6 +830,99 @@
       document.title = `${formatClock(remaining)} • ${task.nome} | Roleta de Estudos`;
     } else {
       document.title = 'Roleta de Estudos — Sorteio & Cronômetro';
+    }
+  }
+
+  function buildTimerSnapshot() {
+    const task = getTaskById(state.activeTaskId);
+    const eligibleCount = getEligibleTasks().length;
+
+    if (!task) {
+      return {
+        hasTask: false,
+        taskId: null,
+        disciplina: '',
+        nome: '',
+        color: getDisciplineColor(''),
+        tempoMin: 0,
+        extraMin: 0,
+        elapsedSeconds: 0,
+        targetSeconds: 0,
+        remainingSeconds: 0,
+        clockText: '--:--',
+        elapsedText: '00:00',
+        progressPct: 0,
+        isRunning: false,
+        isOvertime: false,
+        statusLabel: 'Aguardando',
+        statusKind: 'idle',
+        eligibleCount,
+      };
+    }
+
+    const elapsed = getCurrentElapsedSeconds(task);
+    const target = getTargetSeconds(task);
+    const remaining = target - elapsed;
+    const isOvertime = remaining <= 0;
+    const extraMin = Math.round((task.extraSeconds || 0) / 60);
+    const progressPct = isOvertime ? 100 : (target > 0 ? Math.min(100, (elapsed / target) * 100) : 100);
+
+    let statusLabel = 'Pronto';
+    let statusKind = 'idle';
+    if (isOvertime) {
+      statusLabel = timerRunning ? 'Hora Extra' : 'Tempo Esgotado';
+      statusKind = 'overtime';
+    } else if (timerRunning) {
+      statusLabel = 'Em andamento';
+      statusKind = 'running';
+    } else if (elapsed > 0) {
+      statusLabel = 'Pausado';
+      statusKind = 'paused';
+    }
+
+    return {
+      hasTask: true,
+      taskId: task.id,
+      disciplina: task.disciplina,
+      nome: task.nome,
+      color: getDisciplineColor(task.disciplina),
+      tempoMin: task.tempoMin,
+      extraMin,
+      elapsedSeconds: elapsed,
+      targetSeconds: target,
+      remainingSeconds: remaining,
+      clockText: formatClock(remaining),
+      elapsedText: formatClock(elapsed),
+      progressPct,
+      isRunning: timerRunning,
+      isOvertime,
+      statusLabel,
+      statusKind,
+      eligibleCount,
+    };
+  }
+
+  function syncPip() {
+    if (pip && pip.isOpen()) {
+      pip.sync(buildTimerSnapshot());
+    }
+  }
+
+  function renderPipButton(pipState) {
+    if (!el.btnTimerPip || !el.labelTimerPip) return;
+    const isOpen = Boolean(pipState && pipState.open);
+    el.btnTimerPip.classList.toggle('is-active', isOpen);
+    el.btnTimerPip.setAttribute('aria-pressed', isOpen ? 'true' : 'false');
+
+    if (!isOpen) {
+      el.labelTimerPip.textContent = 'Pop-up';
+      el.btnTimerPip.title = 'Fixar cronômetro em um pop-up flutuante na tela (mesmo fora do navegador)';
+    } else if (pipState.mode === 'firefox-bridge' && pipState.backgrounded) {
+      el.labelTimerPip.textContent = 'PiP ativo';
+      el.btnTimerPip.title = 'Abrir opções ou encerrar transmissão Picture-in-Picture';
+    } else {
+      el.labelTimerPip.textContent = 'Pop-up ativo';
+      el.btnTimerPip.title = 'Fechar cronômetro flutuante';
     }
   }
 
@@ -929,6 +1095,10 @@
       chip.addEventListener('click', () => selectActiveTask(task.id, true));
       el.eligibleChips.appendChild(chip);
     });
+
+    if (!state.activeTaskId) {
+      syncPip();
+    }
   }
 
   function renderTimer() {
@@ -938,6 +1108,7 @@
       el.timerActive.classList.add('hidden');
       el.timerStatusBadge.textContent = 'Aguardando';
       el.timerStatusBadge.className = 'badge badge-status';
+      syncPip();
       return;
     }
 
@@ -1007,6 +1178,8 @@
       el.timerStatusBadge.textContent = 'Pronto';
       el.timerStatusBadge.className = 'badge badge-status';
     }
+
+    syncPip();
   }
 
   function renderDeadlineBadge(node, isoDate) {
@@ -1477,6 +1650,7 @@
       if (e.key === 'Escape') {
         el.taskModal.classList.add('hidden');
         el.importModal.classList.add('hidden');
+        if (pip) pip.handleEscape();
       }
     });
 
@@ -1512,6 +1686,11 @@
     });
 
     // Timer controls
+    if (el.btnTimerPip) {
+      el.btnTimerPip.addEventListener('click', () => {
+        if (pip) pip.toggle();
+      });
+    }
     el.btnTimerToggle.addEventListener('click', () => {
       if (timerRunning) pauseTimer(false);
       else startTimer();
@@ -1538,11 +1717,19 @@
       });
     });
 
+    // Keep display immediately accurate when returning to tab
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && timerRunning) {
+        onTimerTick(true);
+      }
+    });
+
     // Persist elapsed time cleanly if user closes tab while timer is running
     window.addEventListener('beforeunload', () => {
       if (timerRunning) {
         pauseTimer(true);
       }
+      stopTickWorker();
     });
   }
 
@@ -1551,6 +1738,29 @@
     loadState();
     el.searchTasks.value = state.filters.search || '';
     updateStatusTabUI();
+    if (pip) {
+      pip.init({
+        getSnapshot: buildTimerSnapshot,
+        onTogglePlay: () => {
+          if (timerRunning) pauseTimer(false);
+          else startTimer();
+        },
+        onAddFive: addFiveMinutes,
+        onReset: resetActiveTimer,
+        onComplete: () => {
+          if (state.activeTaskId) completeTask(state.activeTaskId);
+        },
+        onQuickDraw: quickDrawTask,
+        onFocusMain: () => {
+          try { window.focus(); } catch (_) {}
+        },
+        onTickRequest: () => {
+          if (timerRunning) onTimerTick();
+        },
+        onStateChange: renderPipButton,
+        onNotify: showToast,
+      });
+    }
     bindEvents();
     renderAll();
   }

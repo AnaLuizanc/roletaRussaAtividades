@@ -160,12 +160,22 @@
 
       <!-- Right Card: Active Timer -->
       <section class="card timer-card" aria-label="Cronômetro da Atividade">
-        <div class="card-header">
+        <div class="card-header timer-card-header">
           <div>
             <h2>Cronômetro</h2>
             <p class="card-subtitle">Temporize e acompanhe a atividade sorteada</p>
           </div>
-          <span class="badge badge-status" id="timerStatusBadge">Aguardando</span>
+          <div class="timer-header-actions">
+            <button type="button" class="btn btn-secondary btn-sm btn-pip" id="btnTimerPip" title="Fixar cronômetro em um pop-up flutuante na tela (mesmo fora do navegador)" aria-pressed="false">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                <rect x="11" y="9" width="9" height="6" rx="1" fill="currentColor" stroke="none"></rect>
+                <path d="M7 21h10"></path>
+              </svg>
+              <span id="labelTimerPip">Pop-up</span>
+            </button>
+            <span class="badge badge-status" id="timerStatusBadge">Aguardando</span>
+          </div>
         </div>
 
         <!-- Empty State -->
@@ -360,11 +370,41 @@ CG	Slides	45	05/12/2026" required></textarea>
     </div>
   </div>
 
+  <!-- Modal: Floating Timer Fallback (browsers without programmatic PiP, e.g. Firefox) -->
+  <div class="modal-backdrop hidden" id="pipFallbackModal" role="dialog" aria-modal="true" aria-labelledby="pipModalTitle">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="pipModalTitle">Cronômetro Flutuante na Tela</h3>
+        <button type="button" class="btn-close" id="btnClosePipModal" aria-label="Fechar">&times;</button>
+      </div>
+      <div class="modal-body pip-modal-body">
+        <p class="form-hint">
+          Para manter o cronômetro <strong>sempre por cima mesmo fora do navegador</strong>, passe o mouse no vídeo abaixo e clique no botão <strong>Picture-in-Picture</strong> (ou clique com o botão direito → <em>Assistir em Picture-in-Picture</em> / <kbd>Ctrl+Shift+]</kbd>).
+        </p>
+        <div class="pip-video-stage">
+          <video id="pipFallbackVideo" class="pip-preview-video" playsinline muted autoplay></video>
+        </div>
+        <div class="pip-modal-actions">
+          <button type="button" class="btn btn-primary btn-block" id="btnKeepPipBackground">
+            Já ativei o PiP — ocultar esta janela
+          </button>
+          <button type="button" class="btn btn-secondary btn-block" id="btnOpenPopupWindow">
+            Abrir Mini Janela Interativa (com botões)
+          </button>
+          <button type="button" class="btn btn-ghost btn-sm danger-text" id="btnStopPipFallback">
+            Encerrar transmissão
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
   <script src="data.js"></script>
   <script src="sound.js"></script>
+  <script src="pip.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -13,6 +13,7 @@ Girou? Caiu? Agora é só dar o play no cronômetro, aceitar a missão e mandar 
 - 🎡 **Sorteio sem dor de cabeça:** gira uma roleta animada (com barulhinho satisfatório e tudo!) pra escolher sua próxima tarefa.
 - 🔗 **Respeita atividades sequenciais:** algumas tarefas precisam ser feitas na ordem (tipo `L3-questão1` → `L3-questão2` → ...). Quando o modo **Sequencial** está ligado, só a próxima atividade desbloqueada entra na roleta. Concluiu uma? A próxima já entra automaticamente no sorteio! *(E se quiser liberar tudo de uma vez, é só virar a chavinha.)*
 - ⏱️ **Cronômetro embutido:** já carrega o tempo estimado da atividade, mostra a contagem regressiva na aba do navegador, toca alarme quando o tempo acaba e entra em **hora extra** se você passar do estimado.
+  - Tem botão de **`Pop-up`** flutuante (Picture-in-Picture) pra deixar o cronômetro sempre visível na tela do computador mesmo fora do navegador (com controles de play/pause, `+5m` e concluir direto no pop-up!).
   - Tem botão de **`+5 min`** (o famoso *"só mais cinco minutinhos"*).
   - Deu pra cansar no meio de um chefão de 180 minutos (alô, `CG • Artigo`)? Clica em **Pausar e Devolver à Roleta** que o tempo já trabalhado fica salvo pra você continuar depois.
 - 🎛️ **Filtros pra vida real:** só tem 30 minutinhos livres antes da aula? Filtra por **tempo máximo**, escolhe uma **disciplina** específica ou ativa o modo **Priorizar prazo próximo** pra dar mais chance às tarefas que vencem logo.
@@ -49,6 +50,7 @@ Sem `npm install`, sem build, sem dor de cabeça:
 - `styles.css` — Visual dark mode, anel de progresso e responsividade.
 - `data.js` — Atividades iniciais, cores das disciplinas e leitor de tabelas coladas.
 - `sound.js` — Efeitos sonoros gerados direto no navegador via Web Audio API.
+- `pip.js` — Pop-up flutuante sempre visível (Document Picture-in-Picture, Video PiP em Canvas e fallback para mini janela).
 - `app.js` — Lógica da roleta em Canvas, dependências sequenciais, cronômetro e salvamento local.
 
 ---
